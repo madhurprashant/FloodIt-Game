@@ -1,0 +1,502 @@
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Random;
+
+import javalib.worldimages.*;
+import java.awt.Color;
+
+import tester.*;
+import javalib.impworld.*;
+
+// utility function for the flood game
+interface FloodUtils {
+
+  // array of colors available for use in the flood game
+  ArrayList<Color> COLORS = new ArrayList<>(Arrays.asList(Color.BLUE, Color.RED, Color.CYAN,
+      Color.ORANGE, Color.YELLOW, Color.GREEN, Color.PINK, Color.MAGENTA));
+
+  // turns the position of a cell on the screen into coordinates in the flood game
+  // board
+  static Posn screen2BoardCoord(Posn pos, int cellHeight, int cellWidth) {
+    int xIdx = (int) ((double) pos.x / (double) cellWidth);
+    int yIdx = (int) ((double) pos.y / (double) cellHeight);
+    return new Posn(xIdx, yIdx);
+  }
+
+  // turns the position of a cell in the flood game board into coordinates on the
+  // screen
+  static Posn board2ScreenCoord(Posn pos, int cellHeight, int cellWidth) {
+    return new Posn((int) ((pos.x + 0.5) * cellWidth), (int) ((pos.y + 0.5) * cellHeight));
+  }
+}
+
+// represents the flood game board
+class FloodItWorld extends World {
+
+  static int SCREEN_SIZE = 400;
+
+  // All the cells of the game
+  ArrayList<ArrayList<Cell>> board;
+  Random r;
+  int size;
+  int colors;
+  int turnsleft;
+  Color floodingcolor;
+
+  // constructor for the FloodItWorld that uses a given size and a given number
+  // of color options
+  FloodItWorld(int size, int colors) {
+    this.board = new ArrayList<ArrayList<Cell>>();
+    this.r = new Random();
+    this.size = size;
+    this.colors = colors;
+    this.turnsleft = ((this.size * 4) + (this.colors * 4)) / 4;
+    this.floodingcolor = null;
+    this.makeCells(this.r, this.colors);
+    this.assignCells();
+  }
+
+  // constructor for the FloodItWorld that uses a seeded random, a given size and
+  // a given number of color options
+  FloodItWorld(Random r, int size, int colors) {
+    this.board = new ArrayList<ArrayList<Cell>>();
+    this.r = r;
+    this.size = size;
+    this.colors = colors;
+    this.turnsleft = ((this.size * 4) + (this.colors * 4)) / 4;
+    this.floodingcolor = null;
+    this.makeCells(this.r, this.colors);
+    this.assignCells();
+  }
+
+  // add cells to the FloodItWorld's board
+  public void makeCells(Random r, int colors) {
+    // add cells to the world's board
+    ArrayList<Cell> row = new ArrayList<Cell>();
+    for (int a = 0; a < this.size; a++) {
+      row = new ArrayList<Cell>();
+      for (int b = 0; b < this.size; b++) {
+        row.add(new Cell(this.r, this.colors));
+      }
+      board.add(row);
+    }
+  }
+
+  // set cells to reference the correct cells
+  public void assignCells() {
+    for (ArrayList<Cell> rows : board) {
+      for (Cell cells : rows) {
+        if (rows.indexOf(cells) == 0 && board.indexOf(rows) == 0) {
+          cells.right = board.get(board.indexOf(rows)).get(rows.indexOf(cells) + 1);
+          cells.bottom = board.get(board.indexOf(rows) + 1).get(rows.indexOf(cells));
+        } else if (rows.indexOf(cells) == board.size() - 1 && board.indexOf(rows) == 0) {
+          cells.left = board.get(board.indexOf(rows)).get(rows.indexOf(cells) - 1);
+          cells.bottom = board.get(board.indexOf(rows) + 1).get(rows.indexOf(cells));
+        } else if (rows.indexOf(cells) == 0 && board.indexOf(rows) == board.size() - 1) {
+          cells.right = board.get(board.indexOf(rows)).get(rows.indexOf(cells) + 1);
+          cells.top = board.get(board.indexOf(rows) - 1).get(rows.indexOf(cells));
+        } else if (rows.indexOf(cells) == board.size() - 1
+            && board.indexOf(rows) == board.size() - 1) {
+          cells.left = board.get(board.indexOf(rows)).get(rows.indexOf(cells) - 1);
+          cells.top = board.get(board.indexOf(rows) - 1).get(rows.indexOf(cells));
+        } else if (rows.indexOf(cells) == 0) {
+          cells.right = board.get(board.indexOf(rows)).get(rows.indexOf(cells) + 1);
+          cells.top = board.get(board.indexOf(rows) - 1).get(rows.indexOf(cells));
+          cells.bottom = board.get(board.indexOf(rows) + 1).get(rows.indexOf(cells));
+        } else if (rows.indexOf(cells) == board.size() - 1) {
+          cells.left = board.get(board.indexOf(rows)).get(rows.indexOf(cells) - 1);
+          cells.top = board.get(board.indexOf(rows) - 1).get(rows.indexOf(cells));
+          cells.bottom = board.get(board.indexOf(rows) + 1).get(rows.indexOf(cells));
+        } else if (board.indexOf(rows) == 0) {
+          cells.left = board.get(board.indexOf(rows)).get(rows.indexOf(cells) - 1);
+          cells.right = board.get(board.indexOf(rows)).get(rows.indexOf(cells) + 1);
+          cells.bottom = board.get(board.indexOf(rows) + 1).get(rows.indexOf(cells));
+        } else if (board.indexOf(rows) == board.size() - 1) {
+          cells.left = board.get(board.indexOf(rows)).get(rows.indexOf(cells) - 1);
+          cells.right = board.get(board.indexOf(rows)).get(rows.indexOf(cells) + 1);
+          cells.top = board.get(board.indexOf(rows) - 1).get(rows.indexOf(cells));
+        } else {
+          cells.left = board.get(board.indexOf(rows)).get(rows.indexOf(cells) - 1);
+          cells.right = board.get(board.indexOf(rows)).get(rows.indexOf(cells) + 1);
+          cells.top = board.get(board.indexOf(rows) - 1).get(rows.indexOf(cells));
+          cells.bottom = board.get(board.indexOf(rows) + 1).get(rows.indexOf(cells));
+        }
+      }
+    }
+  }
+
+  // construct the scene of this world based in it's board and size
+  public WorldScene makeScene() {
+    int screenHeight = new WorldScene(SCREEN_SIZE, SCREEN_SIZE).height;
+    int screenWidth = new WorldScene(SCREEN_SIZE, SCREEN_SIZE).width;
+    WorldImage starterrect = new RectangleImage(SCREEN_SIZE, SCREEN_SIZE, OutlineMode.SOLID,
+        Color.BLACK);
+
+    WorldScene build = new WorldScene(SCREEN_SIZE, SCREEN_SIZE);
+    build.placeImageXY(starterrect, (int) (screenWidth / 2.0), (int) (screenHeight / 2.0));
+
+    // draws the cells on the empty game board
+    for (int rr = 0; rr < this.size; rr++) {
+      ArrayList<Cell> row = board.get(rr);
+      for (int cc = 0; cc < this.size; cc++) {
+        Cell c = row.get(cc);
+        build = c.drawAt(cc, rr, build, this.size);
+      }
+    }
+
+    // returns the filled game board
+    build.placeImageXY(
+        new TextImage(Integer.toString(this.turnsleft), SCREEN_SIZE / 5, Color.BLACK),
+        (int) (SCREEN_SIZE / 2), (int) (SCREEN_SIZE * 1.2));
+    return build;
+  }
+
+  // sets cells to be flooded next tick if their color matches the clicked color
+  public void onMouseClicked(Posn pos) {
+    int height = (int) (SCREEN_SIZE / (double) this.size);
+    int width = (int) (SCREEN_SIZE / (double) this.size);
+    for (ArrayList<Cell> rows : board) {
+      int row = board.indexOf(rows);
+      for (Cell cells : rows) {
+        int col = rows.indexOf(cells);
+        Posn posn2 = FloodUtils.board2ScreenCoord(new Posn(col, row), height, width);
+        if (posn2.x - (width / 2) < pos.x && pos.x < posn2.x + (width / 2)
+            && posn2.y - (height / 2) < pos.y && pos.y < posn2.y + (height / 2)) {
+          this.floodingcolor = cells.color;
+          if (board.get(0).get(0).color != this.floodingcolor) {
+            board.get(0).get(0).floodnext = true;
+          }
+        }
+      }
+    }
+  }
+
+  // restarts the game if "r" is pressed
+  public void onKeyEvent(String k) {
+    if (k.equals("r")) {
+      this.board = new ArrayList<ArrayList<Cell>>();
+      this.r = new Random();
+      this.turnsleft = ((this.size * 4) + (this.colors * 4)) / 4;
+      this.floodingcolor = null;
+      this.makeCells(this.r, this.colors);
+      this.assignCells();
+    }
+  }
+
+  // floods any cells that need to be flooded
+  // and sets up cells to be flooded on next tick
+  public void onTick() {
+    if (board.get(0).get(0).floodnext) {
+      this.turnsleft -= 1;
+    }
+    for (ArrayList<Cell> rows : board) {
+      for (Cell cells : rows) {
+        if (cells.floodnext) {
+          cells.floodnow = true;
+          cells.floodnext = false;
+        }
+      }
+    }
+    for (ArrayList<Cell> rows : board) {
+      for (Cell cells : rows) {
+        if (cells.floodnow) {
+          if (cells.top != null && cells.top.color == cells.color) {
+            cells.top.floodnext = true;
+          }
+          if (cells.bottom != null && cells.bottom.color == cells.color) {
+            cells.bottom.floodnext = true;
+          }
+          if (cells.left != null && cells.left.color == cells.color) {
+            cells.left.floodnext = true;
+          }
+          if (cells.right != null && cells.right.color == cells.color) {
+            cells.right.floodnext = true;
+          }
+          cells.color = this.floodingcolor;
+          cells.floodnow = false;
+        }
+      }
+    }
+  }
+
+  // ends the world if the player has lost or won the game
+  public WorldEnd worldEnds() {
+    int samecheck = 0;
+    for (ArrayList<Cell> rows : board) {
+      for (Cell cells : rows) {
+        if (cells.color == board.get(0).get(0).color) {
+          samecheck += 1;
+        }
+      }
+    }
+    int floodcheck = 0;
+    for (ArrayList<Cell> rows : board) {
+      for (Cell cells : rows) {
+        if (cells.floodnext || cells.floodnow) {
+          floodcheck += 1;
+        }
+      }
+    }
+    if (samecheck >= board.size() * board.size()) {
+      WorldScene build = this.makeScene();
+      build.placeImageXY(
+          new TextImage("The player has won", SCREEN_SIZE / 15, FontStyle.BOLD, Color.WHITE),
+          SCREEN_SIZE / 2, SCREEN_SIZE / 2);
+      return new WorldEnd(true, build);
+    } else if (this.turnsleft <= 0 && floodcheck < 1) {
+      WorldScene build = this.makeScene();
+      build.placeImageXY(
+          new TextImage("The player has lost", SCREEN_SIZE / 15, FontStyle.BOLD, Color.WHITE),
+          SCREEN_SIZE / 2, SCREEN_SIZE / 2);
+      return new WorldEnd(true, build);
+    } else {
+      return new WorldEnd(false, this.makeScene());
+    }
+  }
+}
+
+//Represents a single square of the game area
+class Cell {
+  // In logical coordinates, with the origin at the top-left corner of the screen
+  Color color;
+  boolean floodnow;
+  boolean floodnext;
+  // the four adjacent cells to this one
+  Cell left;
+  Cell top;
+  Cell right;
+  Cell bottom;
+
+  // constructs a cell with an inputed color and flooded boolean and null
+  // reference cells
+  public Cell(Color color, boolean flooded) {
+    this.color = color;
+    this.floodnow = false;
+    this.floodnext = false;
+    this.left = null;
+    this.top = null;
+    this.right = null;
+    this.bottom = null;
+  }
+
+  // constructs a cell with a random color and an inputed number of color options
+  // and null reference cells
+  public Cell(Random r, int colors) {
+    this.floodnow = false;
+    this.floodnext = false;
+    this.color = FloodUtils.COLORS.get(r.nextInt(colors));
+  }
+
+  // constructs a cell with inputed reference cells
+  public Cell(Cell left, Cell top, Cell right, Cell bottom) {
+    this.left = left;
+    this.top = top;
+    this.right = right;
+    this.bottom = bottom;
+  }
+
+  // Draws this cell onto the background at the specified logical coordinates
+  WorldScene drawAt(int col, int row, WorldScene background, int size) {
+
+    int height = (int) (background.height / (double) size);
+    int width = (int) (background.width / (double) size);
+
+    WorldImage rect = new RectangleImage(width, height, OutlineMode.SOLID, this.color);
+
+    rect.movePinholeTo(new Posn(-width / 2, -height / 2));
+
+    Posn posn = FloodUtils.board2ScreenCoord(new Posn(col, row), height, width);
+
+    background.placeImageXY(rect, posn.x, posn.y);
+    return background;
+  }
+
+}
+
+// examples for testing
+class ExamplesFlood {
+
+  Random random1 = new Random(1);
+  Random random2 = new Random(10);
+
+  Cell cell1 = new Cell(Color.yellow, false);
+  Cell cell2 = new Cell(null, cell1, null, null);
+  Cell cell3 = new Cell(random1, 7);
+  Cell cell4 = new Cell(random2, 7);
+  Cell cell5 = new Cell(Color.CYAN, false);
+  Posn posn1 = new Posn(30, 40);
+  Posn posn2 = new Posn(3, 4);
+  Posn posn3 = new Posn(305, 405);
+  FloodItWorld flooditworld1 = new FloodItWorld(this.random1, 8, 7);
+  FloodItWorld flooditworld2 = new FloodItWorld(this.random1, 2, 7);
+  FloodItWorld flooditworld3 = new FloodItWorld(this.random2, 2, 7);
+  FloodItWorld flooditworld4 = new FloodItWorld(this.random2, 2, 1);
+
+  WorldScene worldtest1 = new WorldScene(400, 400);
+  WorldScene worldtest2 = new WorldScene(800, 800);
+
+  RectangleImage recttest1 = new RectangleImage(400, 400, OutlineMode.SOLID, Color.BLACK);
+  RectangleImage recttest2 = new RectangleImage(200, 200, OutlineMode.SOLID, Color.BLUE);
+  RectangleImage recttest3 = new RectangleImage(200, 200, OutlineMode.SOLID, Color.RED);
+  RectangleImage recttest4 = new RectangleImage(200, 200, OutlineMode.SOLID, Color.YELLOW);
+
+  TextImage texttest1 = new TextImage("6", 80, Color.BLACK);
+
+  // initialize the data used in the makeScene and drawAt methods
+  void initData() {
+    this.random1 = new Random(1);
+
+    this.flooditworld2 = new FloodItWorld(random1, 2, 7);
+    this.flooditworld4 = new FloodItWorld(this.random2, 2, 1);
+
+    this.worldtest1 = new WorldScene(400, 400);
+    this.worldtest2 = new WorldScene(800, 800);
+
+    this.recttest1 = new RectangleImage(400, 400, OutlineMode.SOLID, Color.BLACK);
+    this.recttest2 = new RectangleImage(200, 200, OutlineMode.SOLID, Color.BLUE);
+    this.recttest3 = new RectangleImage(200, 200, OutlineMode.SOLID, Color.RED);
+    this.recttest4 = new RectangleImage(200, 200, OutlineMode.SOLID, Color.YELLOW);
+
+    this.texttest1 = new TextImage("6", 80, Color.BLACK);
+
+  }
+
+  // test the method screen2BoardCord
+  void testScreen2BoardCord(Tester t) {
+    t.checkExpect(FloodUtils.screen2BoardCoord(posn1, 10, 10), posn2);
+    t.checkExpect(FloodUtils.screen2BoardCoord(posn2, 1, 1), posn2);
+  }
+
+  // test the method board2ScreenCord
+  void testBoard2ScreenCord(Tester t) {
+    t.checkExpect(FloodUtils.board2ScreenCoord(posn1, 10, 10), posn3);
+    t.checkExpect(FloodUtils.board2ScreenCoord(posn2, 1, 1), posn2);
+  }
+
+  // test the flood game constructor (which also tests the makeCells and
+  // assignCells methods)
+  void testFloodItGameConstructor(Tester t) {
+    t.checkExpect(flooditworld1.board.get(0).get(0).left, null);
+    t.checkExpect(flooditworld1.board.get(0).get(0).right, flooditworld1.board.get(0).get(1));
+    t.checkExpect(flooditworld1.board.get(0).get(0).top, null);
+    t.checkExpect(flooditworld1.board.get(0).get(0).bottom, flooditworld1.board.get(1).get(0));
+    t.checkExpect(flooditworld1.board.get(2).get(2).left, flooditworld1.board.get(2).get(1));
+    t.checkExpect(flooditworld1.board.get(2).get(2).right, flooditworld1.board.get(2).get(3));
+    t.checkExpect(flooditworld1.board.get(2).get(2).top, flooditworld1.board.get(1).get(2));
+    t.checkExpect(flooditworld1.board.get(2).get(2).bottom, flooditworld1.board.get(3).get(2));
+  }
+
+  // test the method makeScene
+  void testMakeScene(Tester t) {
+    initData();
+    worldtest1.placeImageXY(recttest1, 200, 200);
+    worldtest1.placeImageXY(recttest4, 100, 100);
+    worldtest1.placeImageXY(recttest4, 300, 100);
+    worldtest1.placeImageXY(recttest3, 100, 300);
+    worldtest1.placeImageXY(recttest2, 300, 300);
+    worldtest1.placeImageXY(texttest1, 200, 480);
+    t.checkExpect(flooditworld2.makeScene(), worldtest1);
+  }
+
+  // test the method onMouseClicked
+  void testOnMouseClicked(Tester t) {
+    initData();
+    t.checkExpect(flooditworld2.floodingcolor, null);
+    t.checkExpect(flooditworld2.board.get(0).get(0).floodnext, false);
+    flooditworld2.onMouseClicked(new Posn(100, 100));
+    t.checkExpect(flooditworld2.floodingcolor, Color.YELLOW);
+    t.checkExpect(flooditworld2.board.get(0).get(0).floodnext, false);
+    flooditworld2.onMouseClicked(new Posn(100, 300));
+    t.checkExpect(flooditworld2.floodingcolor, Color.RED);
+    t.checkExpect(flooditworld2.board.get(0).get(0).floodnext, true);
+  }
+
+  // test the method onKey
+  void testOnKey(Tester t) {
+    initData();
+    t.checkExpect(this.flooditworld2.turnsleft, 9);
+    this.flooditworld2.onMouseClicked(new Posn(100, 300));
+    this.flooditworld2.onTick();
+    t.checkExpect(this.flooditworld2.turnsleft, 8);
+    this.flooditworld2.onKeyEvent("m");
+    t.checkExpect(this.flooditworld2.turnsleft, 8);
+    this.flooditworld2.onKeyEvent("r");
+    t.checkExpect(this.flooditworld2.turnsleft, 9);
+  }
+
+  // test the method onTick
+  void testOnTick(Tester t) {
+    initData();
+    t.checkExpect(flooditworld2.floodingcolor, null);
+    t.checkExpect(flooditworld2.board.get(0).get(0).floodnext, false);
+    t.checkExpect(flooditworld2.board.get(0).get(0).floodnow, false);
+    t.checkExpect(flooditworld2.board.get(0).get(1).floodnext, false);
+    t.checkExpect(flooditworld2.board.get(0).get(1).floodnow, false);
+    t.checkExpect(flooditworld2.board.get(0).get(0).color, Color.YELLOW);
+    t.checkExpect(flooditworld2.board.get(0).get(1).color, Color.YELLOW);
+
+    flooditworld2.onTick();
+    t.checkExpect(flooditworld2.floodingcolor, null);
+    t.checkExpect(flooditworld2.board.get(0).get(0).floodnext, false);
+    t.checkExpect(flooditworld2.board.get(0).get(0).floodnow, false);
+    t.checkExpect(flooditworld2.board.get(0).get(1).floodnext, false);
+    t.checkExpect(flooditworld2.board.get(0).get(1).floodnow, false);
+    t.checkExpect(flooditworld2.board.get(0).get(0).color, Color.YELLOW);
+    t.checkExpect(flooditworld2.board.get(0).get(1).color, Color.YELLOW);
+    flooditworld2.onMouseClicked(new Posn(100, 300));
+    flooditworld2.onTick();
+    t.checkExpect(flooditworld2.floodingcolor, Color.RED);
+    t.checkExpect(flooditworld2.board.get(0).get(0).floodnext, false);
+    t.checkExpect(flooditworld2.board.get(0).get(0).floodnow, false);
+    t.checkExpect(flooditworld2.board.get(0).get(1).floodnext, true);
+    t.checkExpect(flooditworld2.board.get(0).get(1).floodnow, false);
+    t.checkExpect(flooditworld2.board.get(0).get(0).color, Color.RED);
+    t.checkExpect(flooditworld2.board.get(0).get(1).color, Color.YELLOW);
+    flooditworld2.onTick();
+    t.checkExpect(flooditworld2.floodingcolor, Color.RED);
+    t.checkExpect(flooditworld2.board.get(0).get(0).floodnext, false);
+    t.checkExpect(flooditworld2.board.get(0).get(0).floodnow, false);
+    t.checkExpect(flooditworld2.board.get(0).get(1).floodnext, false);
+    t.checkExpect(flooditworld2.board.get(0).get(1).floodnow, false);
+    t.checkExpect(flooditworld2.board.get(0).get(0).color, Color.RED);
+    t.checkExpect(flooditworld2.board.get(0).get(1).color, Color.RED);
+  }
+
+  // test the method worldEnds
+  void testWorldEnds(Tester t) {
+    initData();
+    WorldScene flooditworld4scene = this.flooditworld4.makeScene();
+    flooditworld4scene.placeImageXY(
+        new TextImage("The player has won", 400 / 15, FontStyle.BOLD, Color.WHITE), 200, 200);
+    t.checkExpect(this.flooditworld4.worldEnds(), new WorldEnd(true, flooditworld4scene));
+    this.flooditworld3.turnsleft = 0;
+    WorldScene flooditworld3scene = this.flooditworld3.makeScene();
+    flooditworld3scene.placeImageXY(
+        new TextImage("The player has lost", 400 / 15, FontStyle.BOLD, Color.WHITE), 200, 200);
+  }
+
+  // test the cell constructors
+  void testCellConstructor(Tester t) {
+    initData();
+    t.checkExpect(cell3, cell1);
+    t.checkExpect(cell4, cell5);
+    t.checkExpect(cell1.left, null);
+    t.checkExpect(cell2.left, null);
+    t.checkExpect(cell2.top, cell1);
+  }
+
+  // test the method drawAt
+  void testDrawAt(Tester t) {
+    initData();
+    worldtest2.placeImageXY(recttest4, 120, 120);
+    t.checkExpect(cell1.drawAt(1, 1, worldtest2, 10), worldtest2);
+  }
+
+  // test running the game
+  void testRun(Tester t) {
+    initData();
+    FloodItWorld game = new FloodItWorld(6, 8);
+    game.bigBang(400, 600, 0.03);
+  }
+
+}
